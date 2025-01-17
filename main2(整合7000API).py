@@ -75,8 +75,8 @@ def forward_to_udp_server(final_hex_report, ip_address="182.92.85.227", port=502
     try:
         udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udp_socket.settimeout(10)  # 设置超时时间为 5 秒
-        udp_socket.sendto(binascii.unhexlify(final_hex_report), (ip_address, port))
-        #udp_socket.sendto(binascii.unhexlify("7B01001631313131313131313131310000000000007B"), (ip_address, port))
+        #udp_socket.sendto(binascii.unhexlify(final_hex_report), (ip_address, port))
+        udp_socket.sendto(binascii.unhexlify("7B01001631313131313131313131310000000000007B"), (ip_address, port))
         logging.info(f"成功发送报文到 {ip_address}:{port}")
 
         # 接收回复
@@ -124,4 +124,4 @@ def receive_data():
 
 
 if __name__ == '__main__':
-    app.run(debug=False, host="0.0.0.0", port=7000, threaded=True)
+    app.run(debug=True, host="0.0.0.0", port=7000, threaded=True)
