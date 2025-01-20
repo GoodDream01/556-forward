@@ -5,10 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="19b76a59-bed6-4dce-82c5-bfb5a8f05038" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/合并数据解析+点火+心跳+回复.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/整合点火+心跳.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main2(整合7000API).py" beforeDir="false" afterPath="$PROJECT_DIR$/main2(整合7000API).py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/合并数据解析+点火+心跳+回复.py" beforeDir="false" afterPath="$PROJECT_DIR$/合并数据解析+点火+心跳+回复.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -194,7 +192,7 @@
       <workItem from="1736754891992" duration="275000" />
       <workItem from="1736755200644" duration="2031000" />
       <workItem from="1736758979178" duration="2734000" />
-      <workItem from="1736761748741" duration="43733000" />
+      <workItem from="1736761748741" duration="59590000" />
     </task>
     <servers />
   </component>

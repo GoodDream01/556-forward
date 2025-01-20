@@ -12,13 +12,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 app = Flask(__name__)
 
 # 全局配置
-HEARTBEAT_MESSAGE = "7B01001631313131313131313131310000000000007B"  # 心跳包
-REPLY_HEARTBEAT = "7B81001031313131313131313131317B"  # 平台回复心跳
-FIRE_COMMAND = "7B09001031313131313131313131317B2423303030344A463030333030314242"  # 即时点火指令
-QUERY_SMOKESTATE_COMMAND = "7B09001031313131313131313131317B2423303030345943303031304242"  # 查询烟炉状态指令
-LOAD_SMOKESTICK_COMMAND = "7B09001031313131313131313131317B242330303034595A3030333939364242"  # 装载烟条指令
-UNLOAD_SMOKESTICK_COMMAND = "7B09001031313131313131313131317B24233030303459583030333939364242"  # 卸载烟条指令
-SET_SYSTEM_TIME_COMMAND_PREFIX = "7B09001031313131313131313131317B2423303030345853303132"   # 系统时间设置指令
 HEARTBEAT_IP = "182.92.85.227"
 HEARTBEAT_PORT = 5023
 HEARTBEAT_INTERVAL = 30  # 心跳间隔时间，单位：秒
@@ -26,6 +19,12 @@ API_URL = "http://back.gs3.pancoit.com/api/msg/normal"
 HEADERS = {
     'Content-Type': 'application/json',
     'Authorization': 'eyJhbGciOiJIUzUxMiJ9.eyJleHAiOjI2MjczNTU5ODAsInN1YiI6IjI3ODU5RjNCQTE0MDRCRUQ5Rjg2REZDRTQ3REYwRTcwIiwiaWF0IjoxNjgxMjc1OTgwfQ.8YWWJ9blKf3R-j2l7W2LRvAirPqbfMYgBZTc065_o502xF0SU0lIv19MbKSVCZsf09-zg-IIwrP7qwM9p42Pfg'
+}
+
+# 配置多台设备及其手机号
+DEVICES = {
+    "device1": "12524002000",
+    "device2": "11111111111",
 }
 
 # BCC校验计算
@@ -38,57 +37,138 @@ def calculate_bcc(data):
         bcc ^= ord(byte)
     return f"{bcc:02X}"
 
-# 心跳包发送函数
-# 心跳包发送函数（改进指令判断逻辑）
+# 动态生成指令
+def generate_command_with_phone(command_template, phone_number):
+    """
+    根据手机号替换指令中的手机号部分
+    """
+    # 将手机号转换为 HEX 格式
+    phone_hex = ''.join([f"{ord(c):X}" for c in phone_number])
+
+    if len(phone_hex) != 22:  # 确保手机号的 HEX 长度为 11 字节（22 个字符）
+        raise ValueError(f"手机号长度必须为 11 位数字, 当前手机号: {phone_number}")
+
+    # 替换指令中的手机号位置
+    command = command_template.replace("3131313131313131313131", phone_hex)  # 替换手机号位置
+    return command
+
+
+# 生成各种指令
+def generate_heartbeat_message(phone_number):
+    """
+    根据手机号生成心跳包
+    """
+    heartbeat_message_template = "7B01001631313131313131313131310000000000007B"
+    return generate_command_with_phone(heartbeat_message_template, phone_number)
+
+def generate_reply_heartbeat(phone_number):
+    """
+    根据手机号生成平台回复心跳包
+    """
+    reply_heartbeat_template = "7B81001031313131313131313131317B"
+    return generate_command_with_phone(reply_heartbeat_template, phone_number)
+
+def generate_fire_command(phone_number):
+    """
+    根据手机号生成即时点火指令
+    """
+    fire_command_template = "7B09001031313131313131313131317B2423303030344A463030333030314242"
+    return generate_command_with_phone(fire_command_template, phone_number)
+
+def generate_query_smokestate_command(phone_number):
+    """
+    根据手机号生成查询烟炉状态指令
+    """
+    query_smokestate_command_template = "7B09001031313131313131313131317B2423303030345943303031304242"
+    return generate_command_with_phone(query_smokestate_command_template, phone_number)
+
+def generate_load_smokestick_command(phone_number):
+    """
+    根据手机号生成装载烟条指令
+    """
+    load_smokestick_command_template = "7B09001031313131313131313131317B242330303034595A3030333939364242"
+    return generate_command_with_phone(load_smokestick_command_template, phone_number)
+
+def generate_unload_smokestick_command(phone_number):
+    """
+    根据手机号生成卸载烟条指令
+    """
+    unload_smokestick_command_template = "7B09001031313131313131313131317B24233030303459583030333939364242"
+    return generate_command_with_phone(unload_smokestick_command_template, phone_number)
+
+def generate_set_system_time_command(phone_number):
+    """
+    根据手机号生成系统时间设置指令
+    """
+    set_system_time_command_template = "7B09001031313131313131313131317B2423303030345853303132"
+    return generate_command_with_phone(set_system_time_command_template, phone_number)
+
+
+# 生成心跳包和回复包
+def generate_heartbeat_message(phone_number):
+    """
+    根据手机号生成心跳包
+    """
+    phone_hex = ''.join([f"{ord(c):X}" for c in phone_number])  # 转换手机号为 HEX
+    heartbeat_message = f"7B010016{phone_hex}0000000000007B"
+    return heartbeat_message
+
+def generate_reply_heartbeat(phone_number):
+    """
+    根据手机号生成平台回复心跳包
+    """
+    phone_hex = ''.join([f"{ord(c):X}" for c in phone_number])  # 转换手机号为 HEX
+    reply_heartbeat = f"7B810010{phone_hex}7B"
+    return reply_heartbeat
+
 def send_heartbeat():
     """
-    定时发送心跳包并监听平台回复
+    定时发送心跳包并监听平台回复（支持多设备）
     """
     while True:
-        try:
-            udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            udp_socket.settimeout(8)  # 设置超时时间
+        for device_name, phone_number in DEVICES.items():
+            try:
+                heartbeat_message = generate_heartbeat_message(phone_number)
+                reply_heartbeat = generate_reply_heartbeat(phone_number)
 
-            # 发送心跳包
-            udp_socket.sendto(binascii.unhexlify(HEARTBEAT_MESSAGE), (HEARTBEAT_IP, HEARTBEAT_PORT))
-            logging.info(f"成功发送心跳包到 {HEARTBEAT_IP}:{HEARTBEAT_PORT}")
+                udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                udp_socket.settimeout(5)
 
-            # 接收平台回复
-            response, addr = udp_socket.recvfrom(2048)
-            response_hex = response.hex().upper()
-            logging.info(f"接收到平台回复: {response_hex}")
+                # 发送心跳包
+                udp_socket.sendto(binascii.unhexlify(heartbeat_message), (HEARTBEAT_IP, HEARTBEAT_PORT))
+                logging.info(f"[{device_name}] 成功发送心跳包到 {HEARTBEAT_IP}:{HEARTBEAT_PORT}, 内容: {heartbeat_message}")
 
-            if response_hex == REPLY_HEARTBEAT:
-                logging.info("收到平台回复心跳，等待平台指令...")
-                # 等待具体指令
+                # 接收平台回复
                 response, addr = udp_socket.recvfrom(2048)
                 response_hex = response.hex().upper()
-                logging.info(f"接收到平台指令: {response_hex}")
+                logging.info(f"[{device_name}] 接收到平台回复: {response_hex}")
 
-                # 判断指令并调用对应函数
-                if response_hex == FIRE_COMMAND:
-                    handle_instant_fire()
-                elif response_hex == QUERY_SMOKESTATE_COMMAND:
-                    handle_query_smoke_state()
-                elif response_hex == LOAD_SMOKESTICK_COMMAND:
-                    handle_load_smokestick()
-                elif response_hex == UNLOAD_SMOKESTICK_COMMAND:
-                    handle_unload_smokestick()
-                elif response_hex.startswith(SET_SYSTEM_TIME_COMMAND_PREFIX[:40]):  # 前缀匹配系统时间设置指令
-                    logging.info("检测到 ‘系统时间设置’ 指令")
-                    handle_set_system_time()
-                else:
-                    logging.warning(f"收到未知指令: {response_hex}")
+                if response_hex == reply_heartbeat:
+                    logging.info(f"[{device_name}] 平台回复心跳校验成功，等待具体指令...")
+                    response, addr = udp_socket.recvfrom(2048)
+                    response_hex = response.hex().upper()
 
-        except socket.timeout:
-            logging.warning("未收到平台回复，继续发送心跳包。")
-        except Exception as e:
-            logging.error(f"心跳包或指令处理失败: {e}")
-        finally:
-            udp_socket.close()
+                    # 动态匹配指令并处理
+                    if response_hex == generate_fire_command(phone_number):
+                        handle_instant_fire()
+                    elif response_hex == generate_query_smokestate_command(phone_number):
+                        handle_query_smoke_state()
+                    elif response_hex == generate_load_smokestick_command(phone_number):
+                        handle_load_smokestick()
+                    elif response_hex == generate_unload_smokestick_command(phone_number):
+                        handle_unload_smokestick()
+                    elif response_hex.startswith(generate_set_system_time_command(phone_number)[:40]):
+                        handle_set_system_time()
+                    else:
+                        logging.warning(f"[{device_name}] 收到未知指令: {response_hex}")
+
+            except socket.timeout:
+                logging.warning(f"[{device_name}] 未收到平台回复，继续发送心跳包。")
+            except Exception as e:
+                logging.error(f"[{device_name}] 心跳包或指令处理失败: {e}")
+            finally:
+                udp_socket.close()
         time.sleep(HEARTBEAT_INTERVAL)
-
-
 
 
 
@@ -118,6 +198,7 @@ def handle_instant_fire():
     except Exception as e:
         logging.error(f"‘即时点火’ 请求失败: {e}")
 
+
 # 查询烟炉状态指令
 def handle_query_smoke_state():
     """
@@ -139,6 +220,7 @@ def handle_query_smoke_state():
             logging.error(f"发送 ‘查询烟炉状态’ 数据失败，状态码: {response.status_code}, 响应: {response.text}")
     except Exception as e:
         logging.error(f"‘查询烟炉状态’ 请求失败: {e}")
+
 
 # 装载烟条指令
 def handle_load_smokestick():
@@ -211,16 +293,13 @@ def handle_set_system_time():
         logging.error(f"系统时间设置请求失败: {e}")
 
 
-
-
-# 处理接收到的 content 字段
-def process_content(content):
+def process_content(content, phone_number):
     """
     解析 content 字段，生成并返回需要转发的最终报文
     """
     # 解析 HEX 数据为 ASCII
     received_ascii = binascii.unhexlify(content).decode("ascii")
-    #logging.info(f"接收到的ASCII数据: {received_ascii}")
+    logging.info(f"接收到的ASCII数据: {received_ascii}")
 
     # 分析并提取字段
     header = received_ascii[:8]  # $#0001TB
@@ -252,10 +331,30 @@ def process_content(content):
     final_report = f"{new_report}{new_checksum}"
     logging.info(f"生成的最终报文: {final_report}")
 
-    # 转换为 HEX，并在前面添加固定数据8
-    fixed_prefix = "7B09001031313131313131313131317B"
+    # 根据设备手机号生成动态的 fixed_prefix
+    fixed_prefix = f"7B090010{phone_number}7B"  # 使用已转换的手机号
+
+    # 转换为 HEX，并在前面添加动态生成的 fixed_prefix
     final_hex_report = fixed_prefix + binascii.hexlify(final_report.encode("ascii")).decode("ascii")
     return final_hex_report
+
+
+
+
+def complete_and_convert_to_hex(from_addr):
+    """
+    将 8 位 fromAddr 补全为 11 位，并转换为 HEX 格式
+    """
+    # 假设补全规则是将 'fromAddr' 后面补充 3 个零以达到 11 位
+    completed_addr = from_addr + "000"  # 补全至 11 位
+    # 将设备卡号转换为 HEX 格式
+    phone_hex = ''.join([f"{ord(c):X}" for c in completed_addr])
+
+    if len(phone_hex) != 22:  # 确保手机号的 HEX 长度为 11 字节（22 个字符）
+        raise ValueError(f"手机号长度必须为 11 位数字, 当前手机号: {completed_addr}")
+
+    return phone_hex
+
 
 # 转发数据到 UDP 服务器
 def forward_to_udp_server(final_hex_report, ip_address="182.92.85.227", port=5023):
@@ -322,21 +421,26 @@ def receive_data():
     if 'commInfos' in data:
         for item in data['commInfos']:
             content = item.get('content')  # 获取 HEX 数据
+            from_addr = item.get('fromAddr')  # 获取设备卡号 (8位)
 
-            # 验证 content 是否存在
-            if not content:
-                logging.warning(f"缺少 content 字段: {item}")
+            # 验证 content 和 fromAddr 是否存在
+            if not content or not from_addr:
+                logging.warning(f"缺少 content 或 fromAddr 字段: {item}")
                 continue  # 跳过此条记录
 
             try:
-                # 去除空格
+                # 从 fromAddr 中推断设备的手机号（补全至 11 位）
+                phone_number = complete_and_convert_to_hex(from_addr)
+                logging.info(f"设备手机号: {phone_number}")
+
+                # 去除 content 中的空格
                 cleaned_content = content.replace(" ", "")
 
                 # 将 HEX 转换为 ASCII
                 ascii_data = binascii.unhexlify(cleaned_content).decode('ascii')
 
                 # 处理数据并生成最终报文
-                final_hex_report = process_content(cleaned_content)
+                final_hex_report = process_content(cleaned_content, phone_number)
                 logging.info(f"最终需转发的 HEX 数据: {final_hex_report}")
 
                 # 异步转发数据
@@ -354,6 +458,8 @@ def receive_data():
 
     # 返回状态 200，立即响应
     return jsonify({"status": "200"}), 200
+
+
 
 
 def start_heartbeat_thread():
