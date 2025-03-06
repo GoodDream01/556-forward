@@ -24,7 +24,8 @@ HEADERS = {
 # 配置多台设备及其手机号
 DEVICES = {
     "device1": "12524002000",
-    "device2": "11111111111",
+    "device2": "12522883000",
+    "device3": "12523062000",
 }
 
 # BCC校验计算
@@ -150,15 +151,15 @@ def send_heartbeat():
 
                     # 动态匹配指令并处理
                     if response_hex == generate_fire_command(phone_number):
-                        handle_instant_fire()
+                        handle_instant_fire(phone_number)
                     elif response_hex == generate_query_smokestate_command(phone_number):
-                        handle_query_smoke_state()
+                        handle_query_smoke_state(phone_number)
                     elif response_hex == generate_load_smokestick_command(phone_number):
-                        handle_load_smokestick()
+                        handle_load_smokestick(phone_number)
                     elif response_hex == generate_unload_smokestick_command(phone_number):
-                        handle_unload_smokestick()
+                        handle_unload_smokestick(phone_number)
                     elif response_hex.startswith(generate_set_system_time_command(phone_number)[:40]):
-                        handle_set_system_time()
+                        handle_set_system_time(phone_number)
                     else:
                         logging.warning(f"[{device_name}] 收到未知指令: {response_hex}")
 
@@ -173,7 +174,7 @@ def send_heartbeat():
 
 
 # 即时点火指令
-def handle_instant_fire():
+def handle_instant_fire(phone_number):
     """
     处理即时点火指令，向 API 发送 JSON 数据
     """
@@ -181,7 +182,7 @@ def handle_instant_fire():
     data = {
         "groupName": "bdcivil",
         "portname": "NULL",
-        "toAddr": 12524002,  # 请使用实际的值
+        "toAddr": int(phone_number[:8]),  # 请使用实际的值
         "content": "00",
         "msgId": "123456"
     }
@@ -200,7 +201,7 @@ def handle_instant_fire():
 
 
 # 查询烟炉状态指令
-def handle_query_smoke_state():
+def handle_query_smoke_state(phone_number):
     """
     处理查询烟炉状态指令，向 API 发送 JSON 数据
     """
@@ -208,7 +209,7 @@ def handle_query_smoke_state():
     data = {
         "groupName": "bdcivil",
         "portname": "NULL",
-        "toAddr": 12524002,  # 请使用实际的值
+        "toAddr": int(phone_number[:8]),  # 请使用实际的值
         "content": "0f",
         "msgId": "123456"
     }
@@ -223,7 +224,7 @@ def handle_query_smoke_state():
 
 
 # 装载烟条指令
-def handle_load_smokestick():
+def handle_load_smokestick(phone_number):
     """
     处理装载烟条指令，向 API 发送 JSON 数据
     """
@@ -231,7 +232,7 @@ def handle_load_smokestick():
     data = {
         "groupName": "bdcivil",
         "portname": "NULL",
-        "toAddr": 12524002,  # 请使用实际的值
+        "toAddr": int(phone_number[:8]),  # 请使用实际的值
         "content": "0e",
         "msgId": "123456"
     }
@@ -245,7 +246,7 @@ def handle_load_smokestick():
         logging.error(f"‘装载烟条’ 请求失败: {e}")
 
 # 卸载烟条指令
-def handle_unload_smokestick():
+def handle_unload_smokestick(phone_number):
     """
     处理卸载烟条指令，向 API 发送 JSON 数据
     """
@@ -253,7 +254,7 @@ def handle_unload_smokestick():
     data = {
         "groupName": "bdcivil",
         "portname": "NULL",
-        "toAddr": 12524002,  # 请使用实际的值
+        "toAddr": int(phone_number[:8]),  # 请使用实际的值
         "content": "0d",
         "msgId": "123456"
     }
@@ -267,7 +268,7 @@ def handle_unload_smokestick():
         logging.error(f"‘卸载烟条’ 请求失败: {e}")
 
 # 系统时间设置指令
-def handle_set_system_time():
+def handle_set_system_time(phone_number):
     """
     处理系统时间设置指令
     """
@@ -275,7 +276,7 @@ def handle_set_system_time():
     data = {
         "groupName": "bdcivil",
         "portname": "NULL",
-        "toAddr": 12524002,
+        "toAddr": int(phone_number[:8]),
         "content": "0c",
         "msgId": "123456"
     }
@@ -331,13 +332,16 @@ def process_content(content, phone_number):
     final_report = f"{new_report}{new_checksum}"
     logging.info(f"生成的最终报文: {final_report}")
 
-    # 根据设备手机号生成动态的 fixed_prefix
-    fixed_prefix = f"7B090010{phone_number}7B"  # 使用已转换的手机号
+    # # 根据设备手机号生成动态的 fixed_prefix
+    # fixed_prefix = f"7B090010{phone_number}7B"  # 使用已转换的手机号
+
+    # 使用已有的函数生成包含手机号的fixed_prefix
+    fixed_prefix_template = "7B09001031313131313131313131317B"
+    fixed_prefix = generate_command_with_phone(fixed_prefix_template, phone_number)
 
     # 转换为 HEX，并在前面添加动态生成的 fixed_prefix
     final_hex_report = fixed_prefix + binascii.hexlify(final_report.encode("ascii")).decode("ascii")
     return final_hex_report
-
 
 
 
@@ -378,36 +382,6 @@ def forward_to_udp_server(final_hex_report, ip_address="182.92.85.227", port=502
     finally:
         udp_socket.close()
 
-
-# 接收 POST 请求并提取 content 字段
-# @app.route('/api/data/rv', methods=['POST'])
-# def receive_data():
-#     data = request.json
-#     logging.info(f"接收到的数据: {data}")
-#
-#     if 'commInfos' in data:
-#         for item in data['commInfos']:
-#             content = item.get('content')  # 获取 HEX 数据
-#             if content:
-#                 try:
-#                     # 去除空格
-#                     cleaned_content = content.replace(" ", "")
-#
-#                     # 将 HEX 转换为 ASCII
-#                     ascii_data = binascii.unhexlify(cleaned_content).decode('ascii')
-#
-#                     # 处理数据并生成最终报文
-#                     final_hex_report = process_content(cleaned_content)
-#                     logging.info(f"最终需转发的 HEX 数据: {final_hex_report}")
-#
-#                     # 转发数据
-#                     forward_to_udp_server(final_hex_report)
-#
-#                 except (binascii.Error, UnicodeDecodeError) as e:
-#                     logging.error(f"处理数据失败: {e}")
-#                     return jsonify({"status": "error", "message": "Invalid HEX data"}), 400
-#     return jsonify({"status": "200"}), 200
-
 # 启动心跳线程
 
 @app.route('/api/data/rv', methods=['POST'])
@@ -430,7 +404,9 @@ def receive_data():
 
             try:
                 # 从 fromAddr 中推断设备的手机号（补全至 11 位）
-                phone_number = complete_and_convert_to_hex(from_addr)
+                # phone_number = complete_and_convert_to_hex(from_addr)
+                phone_number = from_addr.ljust(11, '0')
+
                 logging.info(f"设备手机号: {phone_number}")
 
                 # 去除 content 中的空格
